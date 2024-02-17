@@ -19,3 +19,9 @@
 [submodule "libpthreads4w"]
 	path = libpthreads4w
 	url = https://github.com/philippe44/libpthreads4w
+[submodule "application/http-fetcher"]
+	path = application/http-fetcher
+	url = https://github.com/philippe44/http-fetcher
+[submodule "http-fetcher"]
+	path = http-fetcher
+	url = https://github.com/philippe44/http-fetcher

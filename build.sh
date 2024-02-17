@@ -1,4 +1,5 @@
 #!/bin/bash
+rm -r bin
 
 list="x86_64-linux-gnu-gcc x86-linux-gnu-gcc arm-linux-gnueabi-gcc aarch64-linux-gnu-gcc \
       sparc64-linux-gnu-gcc mips-linux-gnu-gcc mipsel-linux-gnu-gcc powerpc-linux-gnu-gcc x86_64-macos-darwin-gcc \
@@ -26,7 +27,7 @@ declare -A cflags=( [sparc64-linux-gnu-gcc]="-mcpu=v7" \
                     [x86_64-linux-gnu-gcc]="-fno-fast-math" \
                     [armv5-linux-gnueabi-gcc]="-march=armv5t -mfloat-abi=soft" \
                     [powerpc-linux-gnu-gcc]="-m32" )
-					
+
 declare -a compilers
 
 IFS= read -ra candidates <<< "$list"
@@ -34,7 +35,7 @@ IFS= read -ra candidates <<< "$list"
 # do we have "clean" somewhere in parameters (assuming no compiler has "clean" in it...
 if [[ $@[*]} =~ clean ]]; then
 	clean="clean"
-fi	
+fi
 
 # first select platforms/compilers
 for cc in ${candidates[@]}; do
@@ -42,9 +43,9 @@ for cc in ${candidates[@]}; do
 	if ! command -v ${alias[$cc]:-$cc} &> /dev/null; then
 		if command -v $cc &> /dev/null; then
 			unset alias[$cc]
-		else	
+		else
 			continue
-		fi	
+		fi
 	fi
 
 	if [[ $# == 0 || ($# == 1 && -n $clean) ]]; then
@@ -54,7 +55,7 @@ for cc in ${candidates[@]}; do
 
 	for arg in $@
 	do
-		if [[ $cc =~ $arg ]]; then 
+		if [[ $cc =~ $arg ]]; then
 			compilers+=($cc)
 		fi
 	done
@@ -65,11 +66,11 @@ if [[ $@[*]} =~ --libonly ]]; then
 	if [[ -n $clean ]]; then
 		action="cleanlib"
 	else
-		action="lib"	
-	fi	
+		action="lib"
+	fi
 else
-	action=$clean	
-fi	
+	action=$clean
+fi
 
 item=raop
 
@@ -77,31 +78,33 @@ item=raop
 for cc in ${compilers[@]}
 do
 	IFS=- read -r platform host dummy <<< $cc
-	
+
 	export CFLAGS="${cflags[$cc]}"
 	export CC=${alias[$cc]:-$cc}
-	
-	# don't let clang create temp files  
+
+	# don't let clang create temp files
     if [[ $CC =~ -gcc ]]; then
 		export CXX=${CC%-*}-g++
 	else
 		export CXX=${CC%-*}-c++
 		CFLAGS+=" -fno-temp-file -stdlib=libc++"
 	fi
-	
-	target=targets/$host/$platform	
-	mkdir -p targets/include	
+
+	target=targets/$host/$platform
+	mkdir -p targets/include
 	mkdir -p $target
 	pwd=$(pwd)
-	
+
 	make AR=${CC%-*}-ar CC=$CC STATIC=1 PLATFORM=$platform HOST=$host $action -j8
 
 	if [[ -z $clean ]]; then
-		cp lib/$host/$platform/lib$item.a $target		
+		cp lib/$host/$platform/lib$item.a $target
 		cp -u src/raop_client.h targets/include
 		cp -u src/raop_server.h targets/include
 		cp -u src/raop_streamer.h targets/include
-	else	
+	else
 		rm -f $target/lib$item.a
-	fi	
+	fi
 done
+
+chmod +x bin/cliraop*
