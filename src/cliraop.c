@@ -58,7 +58,7 @@ static bool glMainRunning = true;
 static pthread_t glCmdPipeReaderThread;
 char cmdPipeName[32];
 int fd1;
-char cmdPipeBuf[255];
+char cmdPipeBuf[512];
 int latency = MS2TS(1000, 44100);
 struct
 {
@@ -151,7 +151,7 @@ static void *CmdPipeReaderThread(void *args)
 		if (!glMainRunning)
 			break;
 
-		if (read(fd1, cmdPipeBuf, 255) > 0)
+		if (read(fd1, cmdPipeBuf, 512) > 0)
 		{
 			// read lines
 			char *save_ptr1, *save_ptr2;
@@ -521,9 +521,7 @@ int main(int argc, char *argv[])
 			uint32_t elapsed = TS2MS(frames - raopcl_latency(raopcl), raopcl_sample_rate(raopcl));
 			if (frames && frames > raopcl_latency(raopcl))
 			{
-				LOG_INFO("at %u.%u (%" PRIu64 " ms after start), played %" PRIu64 " ms",
-						 RAOP_SECNTP(now), NTP2MS(now - start),
-						 elapsed);
+				LOG_INFO("elapsed milliseconds: %" PRIu64, elapsed);
 			}
 
 			// send keepalive when needed (to prevent stop playback on homepods)
@@ -548,7 +546,7 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			usleep(250);
+			usleep(500);
 		}
 
 	} while (n || raopcl_is_playing(raopcl));
