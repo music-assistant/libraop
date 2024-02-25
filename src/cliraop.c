@@ -285,7 +285,7 @@ static void *CmdPipeReaderThread(void *args)
 		}
 		else
 		{
-			usleep(250);
+			usleep(500);
 		}
 	}
 
@@ -527,12 +527,6 @@ int main(int argc, char *argv[])
 			// send keepalive when needed (to prevent stop playback on homepods)
 			if (!(KeepAlive++ & 0x0f))
 				raopcl_keepalive(raopcl);
-
-			// send progress based on elapsed only if no progress exists in metadata
-			if (metadata.progress == 0)
-			{
-				raopcl_set_progress_ms(raopcl, elapsed, metadata.duration * 1000);
-			}
 		}
 
 		// send chunk if needed
@@ -546,7 +540,7 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			usleep(500);
+			usleep(250);
 		}
 
 	} while (n || raopcl_is_playing(raopcl));
