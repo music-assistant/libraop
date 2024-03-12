@@ -51,23 +51,12 @@ bool startsWith(const char *pre, const char *str)
 }
 
 // locals
-uint32_t glNetmask;
-char glInterface[16] = "?";
-static struct in_addr glHost;
 static bool glMainRunning = true;
 static pthread_t glCmdPipeReaderThread;
 char cmdPipeName[32];
 int fd1;
 char cmdPipeBuf[512];
 int latency = MS2TS(1000, 44100);
-struct
-{
-	char *title;
-	char *artist;
-	char *album;
-	int duration;
-	int progress;
-} metadata = {0};
 struct raopcl_s *raopcl;
 enum
 {
@@ -108,21 +97,30 @@ static int print_usage(char *argv[])
 
 	name = (name) ? name + 1 : argv[0];
 
-	printf("usage: %s <options> <server_ip> <filename ('-' for stdin)>\n"
+	printf("usage: %s <options> <player_ip> <filename ('-' for stdin)>\n"
 		   "\t[-ntp print current NTP and exit\n"
-		   "\t[-p <port number>]\n"
-		   "\t[-v <volume> (0-100)]\n"
-		   "\t[-l <latency> (frames]\n"
-		   "\t[-w <wait>]  (start after <wait> milliseconds)\n"
-		   "\t[-n <start>] (start at NTP <start> + <wait>)\n"
-		   "\t[-e] audio payload encryption\n"
-		   "\t[-auth] <UDN> for authentication (only if crypto present in TXT record)\n"
-		   "\t[-a] send ALAC compressed audio\n"
-		   "\t[-s <secret>] (valid secret for AppleTV)\n"
-		   "\t[-P <password>] (device password)\n"
-		   "\t[-et <et>] (et field in mDNS - 4 for airport-express and used to detect MFi)\n"
-		   "\t[-md <[0][,1][,2]>] (md in mDNS: metadata capabilties 0=text, 1=artwork, 2=progress)\n"
-		   "\t[-d <debug level>] (0 = silent)\n",
+		   "\t[-check print check info and exit\n"
+		   "\t[-port <port number>] (defaults to 5000)\n"
+		   "\t[-volume <volume> (0-100)]\n"
+		   "\t[-latency <latency> (frames]\n"
+		   "\t[-wait <wait>]  (start after <wait> milliseconds)\n"
+		   "\t[-ntpstart <start>] (start at NTP <start> + <wait>)\n"
+		   "\t[-encrypt] audio payload encryption\n"
+		   "\t[-dacp <dacp_id>] (DACP id)\n"
+		   "\t[-activeremote <activeremote_id>] (Active Remote id)\n"
+		   "\t[-alac] send ALAC compressed audio\n"
+
+		   "\t[-et <value>] (et in mDNS: 4 for airport-express and used to detect MFi)\n"
+		   "\t[-md <value>] (md in mDNS: metadata capabilties 0=text, 1=artwork, 2=progress)\n"
+		   "\t[-am <value>] (am in mDNS: modelname)\n"
+		   "\t[-pk <value>] (pk in mDNS: pairing key info)\n"
+		   "\t[-pw <value>] (pw in mDNS: password info)\n"
+
+		   "\t[-secret <secret>] (valid secret for AppleTV)\n"
+		   "\t[-password <password>] (device password)\n"
+		   "\t[-udn <UDN>] (UDN name in mdns, required for password)\n"
+
+		   "\t[-debug <debug level>] (0 = silent)\n",
 		   name);
 	return -1;
 }
@@ -145,6 +143,15 @@ static void close_platform()
 static void *CmdPipeReaderThread(void *args)
 {
 	fd1 = open(cmdPipeName, O_RDONLY);
+	struct
+	{
+		char *title;
+		char *artist;
+		char *album;
+		int duration;
+		int progress;
+	} metadata = {"", "", "", 0, 0};
+
 	// Read and print line from named pipe
 	while (glMainRunning)
 	{
@@ -285,7 +292,7 @@ static void *CmdPipeReaderThread(void *args)
 		}
 		else
 		{
-			usleep(500);
+			usleep(500 * 1000);
 		}
 	}
 
@@ -298,34 +305,28 @@ int main(int argc, char *argv[])
 	char *glDACPid = "1A2B3D4EA1B2C3D4";
 	char *activeRemote = "ap5918800d";
 	char *fname = NULL;
-	int port = 5000;
-	char *passwd = NULL;
 	int volume = 0, wait = 0;
 	struct
 	{
 		struct hostent *hostent;
-		char *name;
+		char *hostname;
+		int port;
+		char *udn;
 		struct in_addr addr;
 	} player = {0};
+	player.port = 5000;
 
-	metadata.duration = 0;
-	metadata.progress = 0;
-	metadata.title = "";
-	metadata.artist = "";
-	metadata.album = "";
 	int infile;
 	uint8_t *buf;
 	int i, n = -1, level = 3;
 	raop_crypto_t crypto = RAOP_CLEAR;
 	uint64_t start = 0, start_at = 0, last = 0, frames = 0;
-	bool alac = false, encryption = false;
-	char *secret = "", *md = "0,1,2", *et = "0,4";
-	bool auth = false;
-
+	bool alac = false, encryption = false, auth = false;
+	char *passwd = "", *secret = "", *md = "0,1,2", *et = "0,4", *am = "", *pk = "", *pw = "";
 	char *iface = NULL;
-	glHost = get_interface(!strchr(glInterface, '?') ? glInterface : NULL, &iface, &glNetmask);
-	LOG_INFO("Binding to %s [%s] with mask 0x%08x", inet_ntoa(glHost), iface, ntohl(glNetmask));
-	NFREE(iface);
+	uint32_t glNetmask;
+	char glInterface[16] = "?";
+	static struct in_addr glHost;
 
 	// parse arguments
 	for (i = 1; i < argc; i++)
@@ -341,55 +342,71 @@ int main(int argc, char *argv[])
 			printf("cliraop check\n");
 			exit(0);
 		}
-		if (!strcmp(argv[i], "-p"))
+		if (!strcmp(argv[i], "-port"))
 		{
-			port = atoi(argv[++i]);
+			player.port = atoi(argv[++i]);
 		}
-		else if (!strcmp(argv[i], "-v"))
+		else if (!strcmp(argv[i], "-volume"))
 		{
 			volume = atoi(argv[++i]);
 		}
-		else if (!strcmp(argv[i], "-w"))
-		{
-			wait = atoi(argv[++i]);
-		}
-		else if (!strcmp(argv[i], "-l"))
+		else if (!strcmp(argv[i], "-latency"))
 		{
 			latency = MS2TS(atoi(argv[++i]), 44100);
 		}
-		else if (!strcmp(argv[i], "-s"))
+		else if (!strcmp(argv[i], "-wait"))
 		{
-			secret = argv[++i];
+			wait = atoi(argv[++i]);
 		}
-		else if (!strcmp(argv[i], "-md"))
+		else if (!strcmp(argv[i], "-ntpstart"))
 		{
-			md = argv[++i];
+			sscanf(argv[++i], "%" PRIu64, &start);
 		}
-		else if (!strcmp(argv[i], "-et"))
+		else if (!strcmp(argv[i], "-encrypt"))
 		{
-			et = argv[++i];
+			encryption = true;
 		}
 		else if (!strcmp(argv[i], "-dacp"))
 		{
 			glDACPid = argv[++i];
 		}
-		else if (!strcmp(argv[i], "-ar"))
+		else if (!strcmp(argv[i], "-activeremote"))
 		{
 			activeRemote = argv[++i];
 		}
-		else if (!strcmp(argv[i], "-auth"))
-		{
-			auth = true;
-		}
-		else if (!strcmp(argv[i], "-a"))
+		else if (!strcmp(argv[i], "-alac"))
 		{
 			alac = true;
 		}
-		else if (!strcmp(argv[i], "-n"))
+		else if (!strcmp(argv[i], "-et"))
 		{
-			sscanf(argv[++i], "%" PRIu64, &start);
+			et = argv[++i];
 		}
-		else if (!strcmp(argv[i], "-d"))
+		else if (!strcmp(argv[i], "-md"))
+		{
+			md = argv[++i];
+		}
+		else if (!strcmp(argv[i], "-am"))
+		{
+			am = argv[++i];
+		}
+		else if (!strcmp(argv[i], "-pk"))
+		{
+			pk = argv[++i];
+		}
+		else if (!strcmp(argv[i], "-pw"))
+		{
+			pw = argv[++i];
+		}
+		else if (!strcmp(argv[i], "-secret"))
+		{
+			secret = argv[++i];
+		}
+		else if (!strcmp(argv[i], "-udn"))
+		{
+			player.udn = argv[++i];
+		}
+		else if (!strcmp(argv[i], "-debug"))
 		{
 			level = atoi(argv[++i]);
 			if (level >= sizeof(debug) / sizeof(struct debug_s))
@@ -397,23 +414,17 @@ int main(int argc, char *argv[])
 				level = sizeof(debug) / sizeof(struct debug_s) - 1;
 			}
 		}
-		else if (!strcmp(argv[i], "-e"))
-		{
-			encryption = true;
-			continue;
-		}
-		else if (!strcmp(argv[i], "-P"))
+		else if (!strcmp(argv[i], "-password"))
 		{
 			passwd = argv[++i];
-			continue;
 		}
 		else if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h"))
 		{
 			return print_usage(argv);
 		}
-		else if (!player.name)
+		else if (!player.hostname)
 		{
-			player.name = argv[i];
+			player.hostname = argv[i];
 		}
 		else if (!fname)
 		{
@@ -425,7 +436,11 @@ int main(int argc, char *argv[])
 	raop_loglevel = debug[level].raop;
 	main_log = debug[level].main;
 
-	if (!player.name)
+	glHost = get_interface(!strchr(glInterface, '?') ? glInterface : NULL, &iface, &glNetmask);
+	LOG_INFO("Binding to %s [%s] with mask 0x%08x", inet_ntoa(glHost), iface, ntohl(glNetmask));
+	NFREE(iface);
+
+	if (!player.hostname)
 		return print_usage(argv);
 	if (!fname)
 		return print_usage(argv);
@@ -441,10 +456,27 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	// setup named pipe for metadata
+	// get player's address
+	player.hostent = gethostbyname(player.hostname);
+	if (!player.hostent)
+	{
+		LOG_ERROR("Cannot resolve name %s", player.hostname);
+		exit(1);
+	}
+	memcpy(&player.addr.s_addr, player.hostent->h_addr_list[0], player.hostent->h_length);
+
+	if (am && strcasestr(am, "appletv") && pk && *pk && !secret)
+	{
+		LOG_ERROR("AppleTV requires authentication (need to send secret field)");
+		exit(1);
+	}
+
+	// setup named pipe for metadata/commands
 	snprintf(cmdPipeName, sizeof(cmdPipeName), "/tmp/fifo-%s", activeRemote);
 	LOG_INFO("Listening for commands on named pipe %s", cmdPipeName);
 	mkfifo(cmdPipeName, 0666);
+
+	// init platform, initializes stdin
 	init_platform();
 
 	if ((encryption || auth) && strchr(et, '1'))
@@ -452,9 +484,32 @@ int main(int argc, char *argv[])
 	else
 		crypto = RAOP_CLEAR;
 
+	// if airport express, force auth
+	if (am && strcasestr(am, "airport"))
+	{
+		auth = true;
+	}
+
+	// handle device password
+	char *password = NULL;
+	if (*passwd && pw && !strcasecmp(pw, "true"))
+	{
+		char *encrypted;
+		// add up to 2 trailing '=' and adjust size
+		asprintf(&encrypted, "%s==", passwd);
+		encrypted[strlen(passwd) + strlen(passwd) % 4] = '\0';
+		password = malloc(strlen(encrypted));
+		size_t len = base64_decode(encrypted, password);
+		free(encrypted);
+		// xor with UDN
+		for (size_t i = 0; i < len; i++)
+			password[i] ^= player.udn[i];
+		password[len] = '\0';
+	}
+
 	// create the raop context
-	if ((raopcl = raopcl_create(glHost, 0, 0, glDACPid, activeRemote, alac ? RAOP_ALAC : RAOP_PCM, DEFAULT_FRAMES_PER_CHUNK,
-								latency, crypto, auth, secret, passwd, et, md,
+	if ((raopcl = raopcl_create(glHost, 0, 0, glDACPid, activeRemote, alac ? RAOP_ALAC : RAOP_ALAC_RAW, DEFAULT_FRAMES_PER_CHUNK,
+								latency, crypto, auth, secret, password, et, md,
 								44100, 16, 2,
 								volume > 0 ? raopcl_float_volume(volume) : -144.0)) == NULL)
 	{
@@ -463,26 +518,18 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	// get player's address
-	player.hostent = gethostbyname(player.name);
-	if (!player.hostent)
-	{
-		LOG_ERROR("Cannot resolve name %s", player.name);
-		goto exit;
-	}
-
-	memcpy(&player.addr.s_addr, player.hostent->h_addr_list[0], player.hostent->h_length);
 	// connect to player
-	if (!raopcl_connect(raopcl, player.addr, port, volume > 0))
+	LOG_INFO("Connecting to player: %s (%s:%hu)", player.udn ? player.udn : player.hostname, inet_ntoa(player.addr), player.port);
+	if (!raopcl_connect(raopcl, player.addr, player.port, volume > 0))
 	{
-		LOG_ERROR("Cannot connect to AirPlay device %s:%hu, check firewall & port", inet_ntoa(player.addr), port);
+		LOG_ERROR("Cannot connect to AirPlay device %s:%hu, check firewall & port", inet_ntoa(player.addr), player.port);
 		goto exit;
 	}
 
 	latency = raopcl_latency(raopcl);
 
 	LOG_INFO("connected to %s on port %d, player latency is %d ms", inet_ntoa(player.addr),
-			 port, (int)TS2MS(latency, raopcl_sample_rate(raopcl)));
+			 player.port, (int)TS2MS(latency, raopcl_sample_rate(raopcl)));
 
 	if (start || wait)
 	{
@@ -497,6 +544,7 @@ int main(int argc, char *argv[])
 		raopcl_start_at(raopcl, start_at);
 	}
 
+	// start the command/metadata reader thread
 	pthread_create(&glCmdPipeReaderThread, NULL, CmdPipeReaderThread, NULL);
 
 	start = raopcl_get_ntp(NULL);
@@ -505,7 +553,8 @@ int main(int argc, char *argv[])
 	buf = malloc(DEFAULT_FRAMES_PER_CHUNK * 4);
 	uint32_t KeepAlive = 0;
 
-	do
+	// keep reading audio from stdin until exit/EOF
+	while (n || raopcl_is_playing(raopcl))
 	{
 		uint64_t playtime, now;
 
@@ -540,15 +589,15 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			usleep(250);
+			usleep(50 * 1000);
 		}
-
-	} while (n || raopcl_is_playing(raopcl));
+	}
 
 	glMainRunning = false;
 	free(buf);
 	raopcl_disconnect(raopcl);
 	pthread_join(glCmdPipeReaderThread, NULL);
+	goto exit;
 
 exit:
 	close(fd1);
