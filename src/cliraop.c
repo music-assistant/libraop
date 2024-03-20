@@ -292,7 +292,7 @@ static void *CmdPipeReaderThread(void *args)
 		}
 		else
 		{
-			usleep(500 * 1000);
+			usleep(250 * 1000);
 		}
 	}
 
@@ -589,7 +589,8 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			usleep(50 * 1000);
+			// prevent full cpu usage if we're waiting on data
+			usleep(1000);
 		}
 	}
 
