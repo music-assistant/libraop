@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "platform.h"
+#include <assert.h>
 
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -43,6 +44,9 @@
 #define RAOP_FRAC(ntp) ((uint32_t)(ntp))
 #define RAOP_SECNTP(ntp) RAOP_SEC(ntp), RAOP_FRAC(ntp)
 
+#define QUEUE_SIZE 50
+#define QUEUE_SIZE_REQ 25
+
 bool startsWith(const char *pre, const char *str)
 {
 	size_t lenpre = strlen(pre),
@@ -50,12 +54,40 @@ bool startsWith(const char *pre, const char *str)
 	return lenstr < lenpre ? false : memcmp(pre, str, lenpre) == 0;
 }
 
+typedef struct
+{
+	size_t head;
+	size_t tail;
+	size_t size;
+	void **data;
+} queue_t;
+
+void *queue_read(queue_t *queue)
+{
+	if (queue->tail == queue->head)
+	{
+		return NULL;
+	}
+	void *handle = queue->data[queue->tail];
+	queue->data[queue->tail] = NULL;
+	queue->tail = (queue->tail + 1) % queue->size;
+	return handle;
+}
+
+int queue_write(queue_t *queue, void *handle)
+{
+	if (((queue->head + 1) % queue->size) == queue->tail)
+	{
+		return -1;
+	}
+	queue->data[queue->head] = handle;
+	queue->head = (queue->head + 1) % queue->size;
+	return 0;
+}
+
 // locals
 static bool glMainRunning = true;
 static pthread_t glCmdPipeReaderThread;
-char cmdPipeName[32];
-int fd1;
-char cmdPipeBuf[512];
 int latency = MS2TS(1000, 44100);
 struct raopcl_s *raopcl;
 enum
@@ -97,7 +129,7 @@ static int print_usage(char *argv[])
 
 	name = (name) ? name + 1 : argv[0];
 
-	printf("usage: %s <options> <player_ip> <filename ('-' for stdin)>\n"
+	printf("usage: %s <options> <player_ip> <filename (or named pipe)>\n"
 		   "\t[-ntp print current NTP and exit\n"
 		   "\t[-check print check info and exit\n"
 		   "\t[-port <port number>] (defaults to 5000)\n"
@@ -142,7 +174,9 @@ static void close_platform()
 /*----------------------------------------------------------------------------*/
 static void *CmdPipeReaderThread(void *args)
 {
-	fd1 = open(cmdPipeName, O_RDONLY);
+	// Background thread that reads commands from stdin
+	int fd = fileno(stdin);
+	char cmdPipeBuf[512];
 	struct
 	{
 		char *title;
@@ -158,7 +192,7 @@ static void *CmdPipeReaderThread(void *args)
 		if (!glMainRunning)
 			break;
 
-		if (read(fd1, cmdPipeBuf, 512) > 0)
+		if (read(fd, cmdPipeBuf, 512) > 0)
 		{
 			// read lines
 			char *save_ptr1, *save_ptr2;
@@ -169,7 +203,7 @@ static void *CmdPipeReaderThread(void *args)
 				if (!glMainRunning)
 					break;
 
-				LOG_DEBUG("Received line on fifo %s", line);
+				LOG_DEBUG("Received line on stdin %s", line);
 				// extract key-value pair within line
 				char *key = strtok_r(line, "=", &save_ptr2);
 				if (strlen(key) == 0)
@@ -445,11 +479,7 @@ int main(int argc, char *argv[])
 	if (!fname)
 		return print_usage(argv);
 
-	if (!strcmp(fname, "-"))
-	{
-		infile = fileno(stdin);
-	}
-	else if ((infile = open(fname, O_RDONLY)) == -1)
+	if ((infile = open(fname, O_RDONLY)) == -1)
 	{
 		LOG_ERROR("cannot open file %s", fname);
 		close_platform();
@@ -470,11 +500,6 @@ int main(int argc, char *argv[])
 		LOG_ERROR("AppleTV requires authentication (need to send secret field)");
 		exit(1);
 	}
-
-	// setup named pipe for metadata/commands
-	snprintf(cmdPipeName, sizeof(cmdPipeName), "/tmp/fifo-%s", activeRemote);
-	LOG_INFO("Listening for commands on named pipe %s", cmdPipeName);
-	mkfifo(cmdPipeName, 0666);
 
 	// init platform, initializes stdin
 	init_platform();
@@ -547,13 +572,12 @@ int main(int argc, char *argv[])
 	// start the command/metadata reader thread
 	pthread_create(&glCmdPipeReaderThread, NULL, CmdPipeReaderThread, NULL);
 
-	start = raopcl_get_ntp(NULL);
 	status = PLAYING;
 
 	buf = malloc(DEFAULT_FRAMES_PER_CHUNK * 4);
 	uint32_t KeepAlive = 0;
 
-	// keep reading audio from stdin until exit/EOF
+	// keep reading audio from until exit/EOF
 	while (n || raopcl_is_playing(raopcl))
 	{
 		uint64_t playtime, now;
@@ -601,8 +625,6 @@ int main(int argc, char *argv[])
 	goto exit;
 
 exit:
-	close(fd1);
-	unlink(cmdPipeName);
 	raopcl_destroy(raopcl);
 	close_platform();
 	return 0;
