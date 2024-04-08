@@ -141,11 +141,6 @@ static void close_platform()
 }
 
 /*----------------------------------------------------------------------------*/
-static void *FillBufferThread(void *args)
-{
-}
-
-/*----------------------------------------------------------------------------*/
 static void *CmdPipeReaderThread(void *args)
 {
 	cmdPipeFd = open(cmdPipeName, O_RDONLY);
