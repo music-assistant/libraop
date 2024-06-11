@@ -121,6 +121,8 @@ static int print_usage(char *argv[])
 		   "\t[-password <password>] (device password)\n"
 		   "\t[-udn <UDN>] (UDN name in mdns, required for password)\n"
 
+		   "\t[-if <ipaddress>] (IP of the interface to bind to)\n"
+
 		   "\t[-debug <debug level>] (0 = silent)\n",
 		   name);
 	return -1;
@@ -398,6 +400,10 @@ int main(int argc, char *argv[])
 		else if (!strcmp(argv[i], "-pw"))
 		{
 			pw = argv[++i];
+		}
+		else if (!strcmp(argv[i], "-if"))
+		{
+			strcpy(glInterface, argv[++i]);
 		}
 		else if (!strcmp(argv[i], "-secret"))
 		{
