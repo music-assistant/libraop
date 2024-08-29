@@ -27,6 +27,7 @@ jobs:
       - name: Prepare build environment
         run: |
           apk add --update alpine-sdk build-base openssl-dev
+          git config --global --add safe.directory /home/runner/work/libraop/libraop
           git submodule update --init
         shell: alpine.sh --root {0}
 
