@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  linux-amd64:
+  linux:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -41,4 +41,4 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: cliraop-linux-${{ matrix.os-arch }}
-          path: releases/
+          path: bin/
