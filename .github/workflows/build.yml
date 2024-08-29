@@ -9,10 +9,10 @@ jobs:
   linux-amd64:
     runs-on: ubuntu-latest
     strategy:
-    matrix:
-      include:
-        - rust-target: aarch64-unknown-linux-musl
-          os-arch: aarch64
+      matrix:
+        include:
+          - os-arch: aarch64
+          - os-arch: x86_64
     env:
       CROSS_SYSROOT: /mnt/alpine-${{ matrix.os-arch }}
     steps:
@@ -30,19 +30,14 @@ jobs:
           git submodule update --init
         shell: alpine.sh --root {0}
 
-      - name: Prepare build environment
-        run: |
-          apk add --update alpine-sdk build-base openssl-dev
-          git submodule update --init
-
       - name: Build
         run: |
           make HOST=linux PLATFORM=${{ matrix.os-arch }}
           chmod +x bin/cliraop-linux-${{ matrix.os-arch }}
+        shell: alpine.sh --root {0}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
-        shell: alpine.sh {0}
         with:
           name: cliraop-linux-${{ matrix.os-arch }}
           path: releases/
