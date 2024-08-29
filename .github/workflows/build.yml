@@ -34,7 +34,7 @@ jobs:
 
       - name: Build
         run: |
-          make STATIC=1 HOST=linux PLATFORM=${{ matrix.os-arch }} cleanlib -j8
+          make HOST=linux PLATFORM=${{ matrix.os-arch }} -j8
           chmod +x bin/cliraop-linux-${{ matrix.os-arch }}
           cp bin/cliraop-linux-${{ matrix.os-arch }} release/
         shell: alpine.sh --root {0}
