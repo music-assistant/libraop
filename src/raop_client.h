@@ -72,6 +72,7 @@ typedef struct ntp_s {
 	uint32_t fraction;
 } ntp_t;
 
+#define NTP_EPOCH_DELTA  0x83aa7e80  /* 2208988800 - that's 1970 - 1900 in seconds */
 #define NTP2MS(ntp) ((((ntp) >> 10) * 1000L) >> 22)
 #define MS2NTP(ms) (((((uint64_t) (ms)) << 22) / 1000) << 10)
 #define TIME_MS2NTP(time) raopcl_time32_to_ntp(time)
