@@ -215,6 +215,7 @@ uint64_t raopcl_get_ntp(struct ntp_s* ntp)
 {
 	uint64_t time = gettime_us();
 	uint32_t seconds = time / (1000 * 1000);
+	seconds += NTP_EPOCH_DELTA; // Convert to NTP epoch (1900-01-01)
 	uint32_t fraction = ((time % (1000 * 1000)) << 32) / (1000 * 1000);
 
 	if (ntp) {
