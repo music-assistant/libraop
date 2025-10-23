@@ -40,7 +40,7 @@ jobs:
           cp bin/cliraop-linux-${{ matrix.os-arch }} release/
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: cliraop-linux-${{ matrix.os-arch }}
           path: release/
