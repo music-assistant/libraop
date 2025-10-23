@@ -69,3 +69,5 @@ __history
 lib/
 *.pdb
 *.bat
+libcodecs
+libmdns
