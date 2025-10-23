@@ -17,14 +17,6 @@ git submodule update --init
 ./build.sh
 ```
 
-## Building (alpine musl build)
-
-```sh
-apk add --update alpine-sdk build-base openssl-dev
-git clone https://github.com/music-assistant/libraop.git
-cd libraop
-git submodule update --init
-
 # Build for architecture
+
 make HOST=linux PLATFORM=aarch64
-```

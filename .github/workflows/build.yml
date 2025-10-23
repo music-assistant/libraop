@@ -25,8 +25,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y build-essential git make gcc g++ libssl-dev ${{ matrix.os-arch == 'aarch64' && 'gcc-aarch64-linux-gnu g++-aarch64-linux-gnu' || '' }}
-          git config --global --add safe.directory /__w/libraop/libraop
-          git submodule update --init
+          git submodule update --force --recursive --init --remote
           mkdir -p release
 
       - name: Build
