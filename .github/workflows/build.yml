@@ -8,36 +8,36 @@ on:
 jobs:
   linux:
     runs-on: ubuntu-latest
+    container:
+      image: debian:bookworm
     strategy:
       matrix:
         include:
           - os-arch: aarch64
+            gcc-arch: aarch64-linux-gnu
           - os-arch: x86_64
-    env:
-      CROSS_SYSROOT: /mnt/alpine-${{ matrix.os-arch }}
+            gcc-arch: x86_64-linux-gnu
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Setup latest Alpine Linux
-        uses: jirutka/setup-alpine@v1
-        with:
-          arch: ${{ matrix.os-arch }}
-
       - name: Prepare build environment
         run: |
-          apk add --update alpine-sdk build-base openssl-dev
-          git config --global --add safe.directory /home/runner/work/libraop/libraop
+          apt-get update
+          apt-get install -y build-essential git make gcc g++ libssl-dev ${{ matrix.os-arch == 'aarch64' && 'gcc-aarch64-linux-gnu g++-aarch64-linux-gnu' || '' }}
+          git config --global --add safe.directory /__w/libraop/libraop
           git submodule update --init
-          mkdir release
-        shell: alpine.sh --root {0}
+          mkdir -p release
 
       - name: Build
         run: |
-          make HOST=linux PLATFORM=${{ matrix.os-arch }} -j8
+          if [ "${{ matrix.os-arch }}" = "aarch64" ]; then
+            export CC=aarch64-linux-gnu-gcc
+            export CXX=aarch64-linux-gnu-g++
+          fi
+          make HOST=linux PLATFORM=${{ matrix.os-arch }} STATIC=1 -j$(nproc)
           chmod +x bin/cliraop-linux-${{ matrix.os-arch }}
           cp bin/cliraop-linux-${{ matrix.os-arch }} release/
-        shell: alpine.sh --root {0}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
