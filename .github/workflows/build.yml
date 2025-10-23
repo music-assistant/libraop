@@ -39,7 +39,7 @@ jobs:
             export CC=aarch64-linux-gnu-gcc
             export CXX=aarch64-linux-gnu-g++
           fi
-          make HOST=linux PLATFORM=${{ matrix.os-arch }} STATIC=1 -j$(nproc) clean
+          make HOST=linux PLATFORM=${{ matrix.os-arch }} STATIC=1 -j$(nproc)
           chmod +x bin/cliraop-linux-${{ matrix.os-arch }}
           cp bin/cliraop-linux-${{ matrix.os-arch }} release/
 
