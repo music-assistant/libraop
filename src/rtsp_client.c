@@ -659,8 +659,12 @@ static bool exec_request(struct rtspcl_s *rtspcld, char *cmd, char *content_type
 
 	token = strtok(line, delimiters);
 	token = strtok(NULL, delimiters);
+
+	// ignore 501 when 
 	if (token == NULL || strcmp(token, "200")) {
-		LOG_ERROR("[%p]: <------ : request failed, error %s", rtspcld, line);
+		if (strcmp(token, "501") || strcmp(cmd, "OPTIONS")) {
+			LOG_ERROR("[%p]: <------ : request failed, error %s %s", rtspcld, line, (token ? token : ""));
+		}
 		if (get_response == 1) return false;
 	} else {
 		LOG_DEBUG("[%p]: <------ : %s: request ok", rtspcld, token);
