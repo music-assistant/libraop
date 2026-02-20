@@ -620,19 +620,18 @@ int main(int argc, char *argv[])
 
 	// handle device password
 	char *password = NULL;
-	if (*passwd && pw && !strcasecmp(pw, "true"))
+	if (pw && !strcasecmp(pw, "true"))
 	{
-		char *encrypted;
-		// add up to 2 trailing '=' and adjust size
-		asprintf(&encrypted, "%s==", passwd);
-		encrypted[strlen(passwd) + strlen(passwd) % 4] = '\0';
-		password = malloc(strlen(encrypted));
-		size_t len = base64_decode(encrypted, password);
-		free(encrypted);
-		// xor with UDN
-		for (size_t i = 0; i < len; i++)
-			password[i] ^= player.udn[i];
-		password[len] = '\0';
+		if (*passwd)
+		{
+			password = passwd;
+		}
+		else // No password argument supplied
+		{
+			LOG_ERROR("Password required, but none supplied.");
+			sleep(1); // Give time for Music Assistant to read and log error
+			exit(1);
+		}
 	}
 
 	// create the raop context
