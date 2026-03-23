@@ -71,3 +71,6 @@ lib/
 *.bat
 libcodecs
 libmdns
+
+# vscode
+/.vscode/
