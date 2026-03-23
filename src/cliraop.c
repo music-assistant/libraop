@@ -356,6 +356,13 @@ int main(int argc, char *argv[])
 	static struct in_addr glHost;
 	char *pair_secret = NULL;
 
+	// Ensure stderr is unbuffered. Python defaults to bufferred IO for all streams
+	if (setvbuf(stderr, NULL, _IONBF, 0) < 0) {
+		fprintf(stderr, "Error: Unable to set stderr to unbuffered. %s\n", strerror(errno));
+		fflush(stderr);
+		return EXIT_FAILURE;
+	}
+
 	// parse arguments
 	for (i = 1; i < argc; i++)
 	{
