@@ -48,6 +48,9 @@ typedef struct rtspcl_s {
 		char realm[16], nonce[256+1];
 		char ha1[32+1];
 	} digest;
+	// status of the last RTSP response read, so callers can tell a rejected
+	// password (401) from an unreachable device (MA cliairplay addition)
+	int last_status;
 } rtspcl_t;
 
 extern log_level 	raop_loglevel;
@@ -61,6 +64,11 @@ static bool exec_request(rtspcl_t *rtspcld, char *cmd, char *content_type,
 /*----------------------------------------------------------------------------*/
 int rtspcl_get_serv_sock(struct rtspcl_s *p) {
 	return p->fd;
+}
+
+/*----------------------------------------------------------------------------*/
+int rtspcl_last_status(struct rtspcl_s *p) {
+	return p ? p->last_status : 0;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -98,6 +106,7 @@ bool rtspcl_is_sane(struct rtspcl_s *p) {
 bool rtspcl_connect(struct rtspcl_s *p, struct in_addr local, struct in_addr host, uint16_t destport, char *sid) {
 	if (!p) return false;
 
+	p->last_status = 0;
 	p->session = NULL;
 	if ((p->fd = open_tcp_socket(local, NULL, true)) == -1) return false;
 	if (!tcp_connect_by_host(p->fd, host, destport)) return false;
@@ -659,6 +668,9 @@ static bool exec_request(struct rtspcl_s *rtspcld, char *cmd, char *content_type
 
 	token = strtok(line, delimiters);
 	token = strtok(NULL, delimiters);
+
+	rtspcld->last_status = 0;
+	if (token) sscanf(token, "%d", &rtspcld->last_status);
 
 	// ignore 501 when used with OPTIONS
 	if (token == NULL || strcmp(token, "200")) {

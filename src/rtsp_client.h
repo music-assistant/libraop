@@ -25,6 +25,9 @@ typedef struct rtp_port_s {
 
 struct rtspcl_s *rtspcl_create(char* user_name);
 bool   			rtspcl_destroy(struct rtspcl_s *p);
+// status of the last RTSP response read (0 when none): tells a rejected
+// password (401) from a device that never answered (MA cliairplay addition)
+int				rtspcl_last_status(struct rtspcl_s *p);
 
 bool rtspcl_connect(struct rtspcl_s *p, struct in_addr local, struct in_addr host, unsigned short destport, char *sid);
 bool rtspcl_disconnect(struct rtspcl_s *p);

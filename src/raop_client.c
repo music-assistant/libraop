@@ -129,6 +129,9 @@ typedef struct {
 
 typedef struct raopcl_s {
 	struct rtspcl_s *rtspcl;
+	// RTSP status seen when raopcl_connect last failed, sampled before the
+	// teardown exchanges overwrite it (MA cliairplay addition)
+	int connect_status;
 	raop_state_t state;
 	uint64_t last_keepalive;  // Track last keepalive time
 	char DACP_id[17], active_remote[11];
@@ -209,6 +212,12 @@ uint32_t raopcl_sample_rate(struct raopcl_s *p)
 {
 	if (!p) return 0;
 	return p->sample_rate;
+}
+
+/*----------------------------------------------------------------------------*/
+int raopcl_connect_rtsp_status(struct raopcl_s *p)
+{
+	return p ? p->connect_status : 0;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -980,6 +989,7 @@ bool raopcl_connect(struct raopcl_s *p, struct in_addr peer, uint16_t destport, 
 
 	if (peer.s_addr != INADDR_ANY) p->peer_addr.s_addr = peer.s_addr;
 	if (destport != 0) p->rtsp_port = destport;
+	p->connect_status = 0;
 
 	RAND_bytes((uint8_t*) &p->ssrc, sizeof(p->ssrc));
 	VALGRIND_MAKE_MEM_DEFINED(&p->ssrc, sizeof(p->ssrc));
@@ -1093,6 +1103,8 @@ bool raopcl_connect(struct raopcl_s *p, struct in_addr peer, uint16_t destport, 
 	return true;
 
  erexit:
+	// sample the failing status before the teardown exchanges below replace it
+	p->connect_status = rtspcl_last_status(p->rtspcl);
 	if (sac) free(sac);
 	kd_free(kd);
 	_raopcl_disconnect(p, true);

@@ -155,6 +155,10 @@ void 	raopcl_stop(struct raopcl_s *p);
 */
 uint32_t 	raopcl_latency(struct raopcl_s *p);
 uint32_t 	raopcl_sample_rate(struct raopcl_s *p);
+// RTSP status seen when raopcl_connect last failed (0 when none): tells a
+// rejected password (401) from a device that never answered (MA cliairplay
+// addition)
+int			raopcl_connect_rtsp_status(struct raopcl_s *p);
 raop_state_t raopcl_state(struct raopcl_s *p);
 uint32_t 	raopcl_queue_len(struct raopcl_s *p);
 
