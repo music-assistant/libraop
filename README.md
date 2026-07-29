@@ -1,3 +1,6 @@
+> [!WARNING]
+> **This repository is deprecated and archived.** Music Assistant now streams to AirPlay devices with the unified [airplay-cli](https://github.com/music-assistant/airplay-cli) binary, which handles both AirPlay 1 (RAOP) and AirPlay 2 and uses upstream [philippe44/libraop](https://github.com/philippe44/libraop) directly.
+
 ## RAOP player and library (AirPlay)
 
 Modified version of cliraop/raop-play for Music Assistant.
